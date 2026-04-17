@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: artanalyzer-db
+    environment:
+      POSTGRES_DB: artanalyzer
+      POSTGRES_USER: artuser
+      POSTGRES_PASSWORD: artpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U artuser -d artanalyzer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: artanalyzer-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/artanalyzer
+      DB_USERNAME: artuser
+      DB_PASSWORD: artpass
+      JWT_SECRET: ${JWT_SECRET:-change-me-to-a-very-long-secret-key-at-least-256-bits}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      UPLOAD_PATH: /uploads
+      FRONTEND_URL: http://localhost:3000
+    volumes:
+      - uploads_data:/uploads
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: artanalyzer-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads_data:
